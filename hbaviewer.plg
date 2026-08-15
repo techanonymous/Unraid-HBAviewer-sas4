@@ -1,18 +1,31 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
-<!ENTITY name      "HBAviewer SAS4">
+<!ENTITY name      "HBAviewer-SAS4">
 <!ENTITY author    "techanonymous">
-<!ENTITY version   "2026.08.15.1">
+<!ENTITY version   "2026.08.15.2">
 <!ENTITY launch    "Tools/HBAviewer_Monitor">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg">
-<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.1/hbaviewer.txz">
-<!ENTITY md5       "60cdecc4eaf8852546b7a9fe1e3dc9cd">
+<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.2/hbaviewer.txz">
+<!ENTITY md5       "fe4ab8a40c9929d75d44f845caa03c8c">
 <!ENTITY icon      "hbaviewer.png">
 ]>
 
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;">
 
 <CHANGES>
+###2026.08.15.2###
+Fixes the Plugins page row left by the rename in 2026.08.15.1.
+
+**Fixed**
+- The Status column span for ever on its loading circle and the info button
+  did nothing. Unraid builds those two cells' HTML ids from the plugin name,
+  and the name had a space in it, which is not valid in an id — so nothing
+  could find the cells to fill them in. The internal name is now
+  HBAviewer-SAS4. Every menu entry still reads HBAviewer SAS4; only the
+  internal identifier changed.
+- The Plugins page description now reads properly instead of echoing the
+  raw internal name.
+
 ###2026.08.15.1###
 Renames the plugin to HBAviewer SAS4 and credits this fork to techanonymous.
 No functional change.
@@ -497,18 +510,33 @@ rm -rf /usr/local/emhttp/plugins/hbaviewer
 tar -xJf /boot/config/plugins/hbaviewer/hbaviewer.txz -C /
 chmod +x /usr/local/emhttp/plugins/hbaviewer/hbaviewer.x86_64
 chmod +x /usr/local/emhttp/plugins/hbaviewer/scripts/*.sh
-# Unraid's plugin manager resolves the Plugins-page icon against plugins/NAME/,
-# where NAME is this plg's name attribute — "HBAviewer SAS4", with a space — not
-# the lowercase install directory. So the icon has to exist there too.
-# Deliberately created here rather than shipped in the repo: a directory
-# differing from hbaviewer/ only in case collides on case-insensitive
-# filesystems, so a maintainer on Windows or macOS would see a phantom deletion
-# on every checkout. Quoted throughout because the name contains a space.
-# The unspaced directory the pre-rename builds used is cleared first, so an
-# upgrade does not leave an orphan behind it.
-rm -rf /usr/local/emhttp/plugins/HBAviewer
-mkdir -p "/usr/local/emhttp/plugins/HBAviewer SAS4"
-cp -f /usr/local/emhttp/plugins/hbaviewer/icon.png "/usr/local/emhttp/plugins/HBAviewer SAS4/hbaviewer.png"
+# Unraid's plugin manager resolves BOTH the Plugins-page icon and that row's
+# description against plugins/NAME/, where NAME is this plg's name attribute —
+# not the lowercase install directory. So both live here.
+#
+# NAME MUST NOT CONTAIN A SPACE. ShowPlugins.php builds the version and status
+# cell ids as "vid-$name" / "sid-$name", replacing dots with hyphens but leaving
+# spaces alone, and an id with a space in it is invalid HTML that no selector
+# resolves. The visible symptom is a status column stuck on its loading spinner
+# for ever and an info button that does nothing — the row renders, so nothing
+# looks broken enough to point at the name. Hence the hyphen. The .page Titles
+# are free text and do carry the space.
+#
+# Created here rather than shipped in the repo: a directory differing from
+# hbaviewer/ only in case collides on case-insensitive filesystems, so a
+# maintainer on Windows or macOS would see a phantom deletion on every checkout.
+# The two directory names earlier builds used are cleared first so an upgrade
+# leaves no orphans.
+rm -rf /usr/local/emhttp/plugins/HBAviewer "/usr/local/emhttp/plugins/HBAviewer SAS4"
+mkdir -p /usr/local/emhttp/plugins/HBAviewer-SAS4
+cp -f /usr/local/emhttp/plugins/hbaviewer/icon.png /usr/local/emhttp/plugins/HBAviewer-SAS4/hbaviewer.png
+# Without a README the Plugins page prints the raw name entity as the
+# description, so this is what puts a readable line in that column.
+printf '%s\n' \
+  '**HBAviewer SAS4**' \
+  '' \
+  'LSI / Broadcom HBA monitoring, with SAS4 (9600-series, mpi3mr + StorCLI2) support.' \
+  > /usr/local/emhttp/plugins/HBAviewer-SAS4/README.md
 if [ ! -f /boot/config/plugins/hbaviewer/hbaviewer.cfg ]; then
   mkdir -p /boot/config/plugins/hbaviewer
   printf "HBA_PORT=1\nALERT_THRESHOLD=80\n" > /boot/config/plugins/hbaviewer/hbaviewer.cfg
@@ -540,6 +568,7 @@ removepkg hbaviewer
 rm -rf /usr/local/emhttp/plugins/hbaviewer
 rm -rf /usr/local/emhttp/plugins/HBAviewer
 rm -rf "/usr/local/emhttp/plugins/HBAviewer SAS4"
+rm -rf /usr/local/emhttp/plugins/HBAviewer-SAS4
 # Pair of the install block's cron entry — an orphaned job pointing at a deleted
 # script would run (and fail) every 10 minutes forever. update_cron rebuilds
 # root's crontab without it.

@@ -1,14 +1,20 @@
-# Unraid HBAviewer
+# HBAviewer SAS4
 
 Monitor LSI / Broadcom SAS Host Bus Adapters (HBAs) directly from Unraid —
 temperature, PHY health, attached drives, SMART, the firmware event log, and
-**real-time performance graphs** — across **three controller generations**, with
+**real-time performance graphs** — across **four controller generations**, with
 the correct backend auto-detected per card. An optional, opt-in **firmware/BIOS
 update** tab is available for users who need it.
 
-> Inspired by **[DevlinDelFuego](https://github.com/DevlinDelFuego/Unraid-LSIUtil)**
-> for the SAS2308 / 9207-8i. This was a project I had been working on for a while with a similar capability but extends it to SAS3 (9300) and SAS3.5
-> tri-mode (9400) controllers and multi-controller systems since I have SAS3 HBAs. I wanted something that had metrics and firmware/bios flashing capability so I had a bunch of scripts but didn't know how to tie it together cleanly until I saw Devlin's program.
+> **This is a fork of [FugginOld/Unraid-HBAviewer](https://github.com/FugginOld/Unraid-HBAviewer)**
+> that adds **SAS4 / 9600-series** support — the tri-mode cards that run on the
+> `mpi3mr` driver and are managed by **StorCLI2** rather than `storcli`.
+> Everything else is upstream's work; see [Credits](#credits).
+>
+> It installs as a **separate plugin**, named *HBAviewer SAS4*, and updates from
+> this repository. It is **not** in Community Applications — you install it by
+> pasting a URL, and Unraid then checks this repo for updates exactly as it does
+> for a CA plugin. See **[Installation](#installation)**.
 
 ## Supported hardware
 
@@ -19,14 +25,32 @@ The plugin detects the controller generation and uses the right tool automatical
 | **SAS2** (6 Gb/s) | SAS2004 / 2008 / 2108 / 2116 / 2208 / 2308 | 9207-8i, 9211-8i, IBM M1015, Dell H200/H310 | `lsiutil` (bundled) |
 | **SAS3** (12 Gb/s) | SAS3004 / 3008 / 3108 / 3216 / 3224 / 3316 | 9300-8i, 9305-16i, 9361-8i | `storcli` (system-installed) |
 | **SAS3.5 / tri-mode** | SAS3408 / 3416 / 3508 / 3516 / 3616 / 3808 / 3816 | 9400-16i, 9400-8i, 9500 series | `storcli` (system-installed) |
+| **SAS4 / tri-mode** (24 Gb/s) | SAS4016 / 4024 / 4116 | 9600-16i, 9600-24i, eHBA 9600 series | `storcli2` (system-installed) |
 
 Multiple controllers are shown side by side. Both SAS and SATA drives are supported.
 
-> **SAS3 / SAS3.5 cards need `storcli`** installed on the system — Broadcom's CLI,
-> which is not bundled here (it's proprietary). The easiest way to install it on
-> Unraid is the **[storcli plugin by dkaser](https://github.com/dkaser/unraid-storcli)**
-> — search **"storcli"** in *Community Applications*. SAS2 cards use the bundled
-> `lsiutil` and need nothing extra.
+> **SAS3 and later need a Broadcom CLI** installed on the system — proprietary,
+> so none of them are bundled here. SAS3 / SAS3.5 use `storcli`; **SAS4 / 9600
+> cards use `StorCLI2`, which is a different program rather than a newer version
+> of the same one** — the classic `storcli` cannot see a 9600 at all and reports
+> zero controllers next to one. The
+> **[storcli plugin by dkaser](https://github.com/dkaser/unraid-storcli)**
+> (search **"storcli"** in *Community Applications*) ships both. SAS2 cards use
+> the bundled `lsiutil` and need nothing extra.
+
+### Known limits on SAS4
+
+Verified against a 9600-24i in eHBA personality. On these cards the kernel
+registers no SAS transport class at all, which constrains three things:
+
+- **Locate and the Array Map are unavailable.** Both key on SAS addresses, which
+  the card does not publish to the kernel.
+- **The Performance tab's link-error series reads as unmeasured**, not zero. That
+  poll may only touch instant sources, and the counters are not among them there.
+  PHY Health does show them — it can afford to ask the controller.
+- **The Event Log needs Broadcom's full StorCLI2.** The Lite build answers that
+  command with *"Un-supported command"*, and the tab says so rather than showing
+  an empty table that would read like a healthy log.
 
 ## Features
 
@@ -185,39 +209,105 @@ means coming back past the warning that explains what it costs to get wrong.
 
 - Unraid 6.12 or newer (7.2+ for the dashboard tile)
 - A supported LSI / Broadcom SAS controller (see the table above)
-- For **SAS3 / SAS3.5** cards: `storcli` installed — easiest via the
-  [dkaser/unraid-storcli](https://github.com/dkaser/unraid-storcli) plugin
-  (search "storcli" in Community Applications)
+- For **SAS3 / SAS3.5** cards: `storcli` installed
+- For **SAS4 / 9600** cards: `StorCLI2` installed — a different program from
+  `storcli`, not a newer one
 - `smartctl` (ships with Unraid) for the SMART features
 - The `lsiutil` binary for SAS2 cards is bundled in the `.txz` — nothing extra
   is downloaded
 
 ## Installation
 
-1. In the Unraid web UI go to **Plugins → Install Plugin**
-2. Paste the plugin URL:
+This plugin is **not in Community Applications**, so it installs from a URL.
+Unraid treats a URL-installed plugin exactly like any other afterwards: the
+Plugins page shows updates from this repository, and **Update** applies them.
 
-    ```text
-    https://raw.githubusercontent.com/FugginOld/Unraid-HBAviewer/main/hbaviewer.plg
+### 1. Install the plugin
+
+In the Unraid web UI, go to **Plugins → Install Plugin**, paste this URL, and
+click **Install**:
+
+```text
+https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg
+```
+
+Or from a terminal:
+
+```bash
+plugin install https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg
+```
+
+> **If you already have the original HBAviewer installed, remove it first.**
+> Both plugins install to the same directories, so they cannot coexist — the
+> second one to be installed wins and the other's entry stops working. Your
+> settings, drive-bay map and event archives live in
+> `/boot/config/plugins/hbaviewer/` and are **not** removed by uninstalling, so
+> switching over keeps them.
+
+### 2. Install the Broadcom CLI your card needs
+
+Nothing further is needed for a **SAS2** card — skip to step 3.
+
+**SAS3 / SAS3.5 (`storcli`) and SAS4 / 9600 (`StorCLI2`)**: search **"storcli"**
+in *Community Applications* and install
+**[dkaser's storcli plugin](https://github.com/dkaser/unraid-storcli)**. It ships
+both tools and puts them on `PATH`, which is all this plugin needs — it probes
+for whichever one can actually read your card rather than guessing from the name.
+
+That covers every tab on a 9600 **except the firmware Event Log**, because the
+StorCLI2 build it ships is the feature-reduced *Lite* one. If you want the Event
+Log too, install Broadcom's full StorCLI2 as well:
+
+1. Download **StorCLI2** from Broadcom's support site (it is proprietary and
+   cannot be redistributed here).
+2. From the archive, take the Linux x86_64 build. In the release used here it sat
+   at `storcli_rel/Avenger_StorCLI/Linux/storcli2-*.x86_64.rpm` and
+   `storcli_rel/Avenger_StorCLI/Ubuntu/storcli2_*_amd64.deb`; either package
+   contains one binary, at `opt/MegaRAID/storcli2/storcli2`. Neither installs on
+   Slackware, so extract rather than install it.
+3. Copy that binary to your flash drive, somewhere that survives a reboot:
+   `/boot/config/plugins/hbaviewer/tools/storcli2`
+4. `/opt` is RAM on Unraid and the flash is FAT32, so it cannot keep the execute
+   bit — restore it at each boot by adding these lines to `/boot/config/go`:
+
+    ```bash
+    mkdir -p /opt/MegaRAID/storcli2
+    cp /boot/config/plugins/hbaviewer/tools/storcli2 /opt/MegaRAID/storcli2/storcli2
+    chmod +x /opt/MegaRAID/storcli2/storcli2
     ```
 
-3. Click **Install**
+5. Run those three lines once by hand so you do not have to reboot now.
 
-After installation, find the monitor under **Tools → HBAviewer → HBA Monitor**.
+### 3. Confirm it found your card
+
+Open **User Utilities → HBAviewer SAS4**. The settings page opens instantly and
+names the detected **Access Method** — `StorCLI2`, `storcli` or
+`lsiutil (bundled)` — along with the controller it found. Check that before
+opening the Monitor: if it reports a card but says the tool is NOT INSTALLED, go
+back to step 2.
+
+Then find the monitor under **Tools → HBAviewer SAS4 → HBA Monitor**.
+
+### Updating
+
+The Plugins page checks this repository and offers updates like any other
+plugin. From a terminal, `plugin check hbaviewer.plg` then
+`plugin update hbaviewer.plg` does the same. (GitHub caches raw files for a few
+minutes, so a release published moments ago may need one extra check.)
 
 ## Layout
 
 ```text
 Tools
-└── HBAviewer
+└── HBAviewer SAS4
     └── HBA Monitor   (tabs: Overview · HBA Health · PHY Health · Drives
                               · Array Map · SMART · Event Log · Performance)
 
 User Utilities
-└── HBAviewer          (full settings page)
-└── HBAviewer Firmware (Firmware/BIOS Update*)
-                        *opt-in, off by default; the page and its menu entry
-                         only exist once it is enabled
+└── HBAviewer SAS4          (full settings page)
+└── HBAviewer SAS4 Firmware (Firmware/BIOS Update*)
+                             *opt-in, off by default; the page and its menu entry
+                              only exist once it is enabled
 
 Dashboard
 └── HBA Temperature tile (Unraid 7.2+)
@@ -225,13 +315,13 @@ Dashboard
 
 ## Configuration
 
-Open **User Utilities → HBAviewer**. The settings page opens instantly and shows
-the detected **Access Method** (`storcli` or `lsiutil`) so you can confirm the
-right backend is in use before opening the Monitor.
+Open **User Utilities → HBAviewer SAS4**. The settings page opens instantly and
+shows the detected **Access Method** (`StorCLI2`, `storcli` or `lsiutil`) so you
+can confirm the right backend is in use before opening the Monitor.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| Access Method | (auto) | Read-only. Shows whether `storcli` (SAS3/3.5) or `lsiutil` (SAS2) is used, and warns if a SAS3 card is found but `storcli` isn't installed. |
+| Access Method | (auto) | Read-only. Shows which backend is in use — `StorCLI2` (SAS4), `storcli` (SAS3/3.5) or `lsiutil` (SAS2) — and warns if a card is found but the tool it needs isn't installed. |
 | lsiutil Port | 1 | *SAS2 only* — lsiutil port number. Only shown if SAS2 cards are detected. SAS3/storcli cards are enumerated automatically. |
 | Alert Threshold | 80 °C | The badge turns red (ALERT) at or above this temperature. |
 | Show PCIe Info | On | PCIe width/speed row in the Overview. |
@@ -295,14 +385,16 @@ rather than as editable test data.
 
 ## Credits
 
+- **[FugginOld — Unraid-HBAviewer](https://github.com/FugginOld/Unraid-HBAviewer)**
+  — the plugin this repo forks. Everything except the SAS4 backend is his work.
 - **[DevlinDelFuego — Unraid-LSIUtil](https://github.com/DevlinDelFuego/Unraid-LSIUtil)**
-  — the original Unraid plugin this repo (Unraid-HBAviewer) is inspired on.
+  — the original Unraid plugin that inspired it, for the SAS2308 / 9207-8i.
 - **[Thomas Lovell — LSIUtil](https://github.com/thomaslovell/LSIUtil/)** — the
   `lsiutil` binary that makes the SAS2 path possible.
-- **Broadcom** — `storcli` (used for SAS3 / SAS3.5 controllers) and the original
-  `lsiutil` source.
+- **Broadcom** — `storcli` (SAS3 / SAS3.5), `StorCLI2` (SAS4 / 9600) and the
+  original `lsiutil` source.
 - **[dkaser — unraid-storcli](https://github.com/dkaser/unraid-storcli)** — the
-  easiest way to install `storcli` on Unraid for SAS3 / SAS3.5 cards.
+  easiest way to get either Broadcom CLI onto Unraid.
 
 ## Special Thanks
 

@@ -15,28 +15,55 @@ $saved = false;
 // so issue #3's box has no mpt2sas module while its SAS9207-8i reports
 // proc_name=mpt2sas. Keying off /sys/module called that card a SAS3 controller,
 // demanded storcli for it, and hid the lsiutil Port row it actually needs.
+// mpi3mr is the SAS4 driver (9600 series). It needs StorCLI2, a DIFFERENT binary
+// from the classic storcli — not a newer one — so the two are probed separately
+// below. It also exposes no board_name at all (its host attrs are version_fw,
+// adp_state, fw_queue_depth and friends), which is why the diagnostic row falls
+// back to naming the driver rather than printing "unknown board" and stopping.
 $hw = [];          // one entry per SAS host, for the read-only diagnostic row
 $has_sas2 = false; // any host on the mpt2sas/mptsas personality -> bundled lsiutil
 $has_sas3 = false; // any host on the mpt3sas personality        -> needs storcli
+$has_sas4 = false; // any host on the mpi3mr personality         -> needs StorCLI2
 foreach (glob('/sys/class/scsi_host/host*/') ?: [] as $h) {
     $drv = trim((string) @file_get_contents($h . 'proc_name'));
-    if (!in_array($drv, ['mpt3sas', 'mpt2sas', 'mptsas'], true)) continue;
-    if ($drv === 'mpt3sas') { $has_sas3 = true; } else { $has_sas2 = true; }
+    if (!in_array($drv, ['mpt3sas', 'mpt2sas', 'mptsas', 'mpi3mr'], true)) continue;
+    if     ($drv === 'mpi3mr')  { $has_sas4 = true; }
+    elseif ($drv === 'mpt3sas') { $has_sas3 = true; }
+    else                        { $has_sas2 = true; }
     $board = trim((string) @file_get_contents($h . 'board_name'));
     $fw    = trim((string) @file_get_contents($h . 'version_fw'));
     $hw[]  = ($board !== '' ? $board : 'unknown board') . " ($drv"
            . ($fw !== '' ? ", fw $fw" : '') . ')';
 }
-$hw_detail = $hw ? implode(' · ', $hw) : 'no mpt2sas/mpt3sas hosts found';
-$storcli  = '';
-foreach (['/usr/local/sbin/storcli','/usr/local/sbin/storcli64','/usr/sbin/storcli','/usr/sbin/storcli64'] as $c) {
-    if (is_executable($c)) { $storcli = $c; break; }
-}
-if ($storcli === '') {
-    $w = trim((string) shell_exec('command -v storcli storcli64 2>/dev/null'));
-    if ($w !== '') $storcli = strtok($w, "\n");
-}
-if ($storcli !== '') {
+$hw_detail = $hw ? implode(' · ', $hw) : 'no mpt2sas / mpt3sas / mpi3mr hosts found';
+
+// Two independent lookups: a box with a 9600 typically has BOTH tools installed
+// (the dkaser plugin symlinks storcli and storcli2 alike), and the classic one
+// simply enumerates nothing there. Presence of one says nothing about the other.
+$find_tool = function (array $names): string {
+    foreach ($names as $n) {
+        foreach (['/usr/local/sbin/', '/usr/local/bin/', '/usr/sbin/'] as $d) {
+            if (is_executable($d . $n)) return $d . $n;
+        }
+    }
+    if (is_executable('/opt/MegaRAID/storcli2/storcli2') && in_array('storcli2', $names, true)) {
+        return '/opt/MegaRAID/storcli2/storcli2';
+    }
+    $w = trim((string) shell_exec('command -v ' . implode(' ', $names) . ' 2>/dev/null'));
+    return $w !== '' ? (string) strtok($w, "\n") : '';
+};
+$storcli  = $find_tool(['storcli', 'storcli64']);
+$storcli2 = $find_tool(['storcli2']);
+
+if ($has_sas4 && $storcli2 === '') {
+    $backend_label = 'StorCLI2 — NOT INSTALLED';
+    $backend_note  = 'A controller was found on the mpi3mr driver (SAS4, 9600 series). It needs StorCLI2 — the classic storcli cannot read these cards. The dkaser/unraid-storcli plugin ships one as storcli2.';
+} elseif ($has_sas4) {
+    $backend_label = 'StorCLI2';
+    $backend_note  = 'SAS4 / 9600-series controller detected.'
+        . ($has_sas2 || $has_sas3 ? ' Another controller generation is also present and uses its own backend.' : '')
+        . ' Note the Lite StorCLI2 build has no event-log command; the full Broadcom build does.';
+} elseif ($storcli !== '') {
     $backend_label = 'storcli';
     $backend_note  = $has_sas2
         ? 'storcli is installed and is tried first; the bundled lsiutil covers any SAS2 card it does not enumerate.'
@@ -51,7 +78,7 @@ if ($storcli !== '') {
     $backend_note  = 'A controller was found on the mpt3sas driver, which the bundled lsiutil cannot read through. Install storcli via the dkaser/unraid-storcli plugin (Community Applications).';
 } else {
     $backend_label = 'none detected';
-    $backend_note  = 'No supported HBA controller (mpt2sas / mpt3sas) was found.';
+    $backend_note  = 'No supported HBA controller (mpt2sas / mpt3sas / mpi3mr) was found.';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_hbaviewer'])) {

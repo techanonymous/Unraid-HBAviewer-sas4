@@ -7,8 +7,10 @@
 # hit them on a real SAS9207-8i.
 #
 # drv_lsiutil is lifted out with sed rather than sourced: the script calls
-# hba_each at load and would go looking for real hardware. require_binary and
-# hba_query (normally lib.sh) are stubbed so no lsiutil binary is needed.
+# hba_each at load and would go looking for real hardware. lib.sh IS sourced —
+# it only defines functions — so the personality filter under test is the real
+# hba_is_sas_proc rather than a copy that could drift from it; require_binary and
+# hba_query are then stubbed over so no lsiutil binary is needed.
 #   bash tests/drives_sysfs_test.sh   ->  "drives_sysfs: all pass" (exit 0)
 cd "$(dirname "$0")" || exit 2
 SRC="../source/usr/local/emhttp/plugins/hbaviewer/scripts/get_attached_drives.sh"
@@ -21,6 +23,8 @@ eq() {  # name  want  got
 FN=$(sed -n '/^drv_lsiutil()/,/^}/p' "$SRC")
 [ -n "$FN" ] || { echo "FAIL  drv_lsiutil not found in $SRC"; exit 1; }
 eval "$FN"
+# shellcheck source=/dev/null
+source "$DIR/lib.sh"
 
 require_binary() { :; }
 PORT=0

@@ -19,12 +19,13 @@
 # attribution (per storcli /cN) is the upgrade path if host order ever diverges.
 
 DIR="$(dirname "$0")"
+source "$DIR/lib.sh"   # hba_is_sas_proc — the one copy of the personality list
 
-# Ordered SAS host numbers (mpt2sas/mpt3sas) — one per controller.
+# Ordered SAS host numbers — one per controller.
 hosts=()
 for h in /sys/class/scsi_host/host*/; do
     [ -d "$h" ] || continue
-    case "$(cat "${h}proc_name" 2>/dev/null)" in mpt3sas|mpt2sas|mptsas) ;; *) continue ;; esac
+    hba_is_sas_proc "$(cat "${h}proc_name" 2>/dev/null)" || continue
     hn=$(basename "$h"); hosts+=("${hn#host}")
 done
 # numeric sort so the index order is stable (host2 before host10)
@@ -60,8 +61,15 @@ CACHE="${LSI_CACHE:-/tmp/lsiutil_dash.json}"
 temps=()
 [ -s "$CACHE" ] && mapfile -t temps < <(bash "$DIR/parse/cache_temps.sh" < "$CACHE" 2>/dev/null)
 
-phy_sum() {   # $1 = host number; echoes "inv disp sync reset"
-    local host=$1 inv=0 disp=0 sync=0 reset=0 p idx v
+# Echoes "inv disp sync reset", or NOTHING when this host has no sysfs PHYs at
+# all. Empty is not the same as four zeros: a SAS4 controller in eHBA personality
+# registers no SAS transport class, so /sys/class/sas_phy is empty for it, and
+# reporting 0 would draw the Performance tab's link-error series as a flat,
+# confident "no errors" for a card whose counters were never read. This poll is
+# the instant path and may not shell out to StorCLI2 to get them, so the honest
+# answer is null. (ARCHITECTURE.md: absence is not health.)
+phy_sum() {   # $1 = host number
+    local host=$1 inv=0 disp=0 sync=0 reset=0 p idx v seen=0
     for p in /sys/class/sas_phy/phy-"${host}":*/; do
         [ -d "$p" ] || continue
         idx=$(basename "$p")
@@ -74,16 +82,23 @@ phy_sum() {   # $1 = host number; echoes "inv disp sync reset"
         v=$(cat "$p/running_disparity_error_count" 2>/dev/null); disp=$((disp+${v:-0}))
         v=$(cat "$p/loss_of_dword_sync_count"      2>/dev/null); sync=$((sync+${v:-0}))
         v=$(cat "$p/phy_reset_problem_count"       2>/dev/null); reset=$((reset+${v:-0}))
+        seen=1
     done
-    echo "$inv $disp $sync $reset"
+    [ "$seen" -eq 1 ] && echo "$inv $disp $sync $reset"
 }
 
 printf '{"t":%s,"controllers":[' "$(date +%s)"
 for i in "${!hosts[@]}"; do
     [ "$i" -gt 0 ] && printf ','
+    inv=""; disp=""; sync=""; reset=""
     read -r inv disp sync reset <<<"$(phy_sum "${hosts[$i]}")"
     drives=$(bash "$DIR/parse/diskstats.sh" "${cdevs[$i]}" <<<"$DS")   # {"drives":[...]}
-    printf '{"idx":%d,"temp":%s,"phy":{"inv":%d,"disp":%d,"sync":%d,"reset":%d},%s' \
-        "$i" "${temps[$i]:-null}" "$inv" "$disp" "$sync" "$reset" "${drives#\{}"
+    if [ -n "$inv" ]; then
+        phyjson=$(printf '{"inv":%d,"disp":%d,"sync":%d,"reset":%d}' "$inv" "$disp" "$sync" "$reset")
+    else
+        phyjson=null
+    fi
+    printf '{"idx":%d,"temp":%s,"phy":%s,%s' \
+        "$i" "${temps[$i]:-null}" "$phyjson" "${drives#\{}"
 done
 printf ']}'

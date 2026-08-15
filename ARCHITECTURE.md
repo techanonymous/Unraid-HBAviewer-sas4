@@ -34,20 +34,36 @@ the captured text to a parser. It does not decide *which* backend — that is
 
 ### 2. The backend seam — `scripts/lib.sh` (`hba_each`)
 
-The single place that chooses **storcli** (SAS3/3.5) or **lsiutil** (SAS2),
-counts controllers, resolves the driver string, and wraps everything in
-`{"backend", "driver", "controllers": [...]}`.
+The single place that chooses **storcli2** (SAS4 — 9600 series, `mpi3mr`),
+**storcli** (SAS3/3.5, `mpt3sas`) or **lsiutil** (SAS2, `mpt2sas`), counts
+controllers, resolves the driver string, and wraps everything in
+`{"backend", "driver", "controllers": [...]}`. `hba_each` takes an optional third
+composer for the storcli2 path and falls back to the storcli one when a composer
+has not been ported.
 
-Two things about backend selection that have each caused a bug:
+Four things about backend selection that have each caused a bug:
 
 - **Selection is by driver personality (`proc_name`), not by which kernel module
   is loaded.** The merged `mpt3sas` module reports `proc_name=mpt2sas` for SAS2
   cards, and the bundled lsiutil reads those fine. An earlier check keyed on
-  `/sys/module` refused hardware it could have read.
+  `/sys/module` refused hardware it could have read. `hba_is_sas_proc` is the one
+  copy of that list — it used to be pasted into six scripts, and adding `mpi3mr`
+  meant finding every one of them.
+- **`hba_driver()` is keyed on the personality too, for the same reason.** Unraid
+  builds `mpt3sas` INTO the kernel, so `/sys/module/mpt3sas/version` is readable
+  on a box whose only HBA is a 9600 — the module-first version of this function
+  reported `mpt3sas 54.100.00.00` for an `mpi3mr` card.
 - **storcli being installed does not mean storcli is in use.** It does not
   enumerate IT-mode SAS2 cards, so `hba_each` falls through to lsiutil. Never
   infer the active backend from the binary's presence — read the `backend` field
   in the payload.
+- **Nor does the tool's NAME tell you which flavor it is.** A 9600 box normally
+  has both installed (the dkaser plugin symlinks `storcli` *and* `storcli2`), and
+  the classic one answers `Number of Controllers = 0` there — indistinguishable
+  from "no card" unless the other is tried. `use_storcli` therefore probes every
+  candidate and picks the one that enumerates; `storcli_flavor` reads the
+  binary's own banner, because the file itself ships as `storcli2Lite-8.14` and
+  gets symlinked to whatever the packager chose.
 
 ### 3. Parsers — `scripts/parse/*.sh`
 
@@ -56,13 +72,21 @@ hardware access, no environment, no side effects. That is what makes them
 testable without a controller, and it is not negotiable — a parser that shells
 out cannot be fixture-tested and will rot.
 
-Two families, because the two backends produce different text:
+Three families, because the three backends produce different text:
 
-| lsiutil | storcli |
-| --- | --- |
-| `hba.sh`, `phy.sh`, `events.sh`, `drives_osmap.sh`, `drives_join.sh` | `storcli_overview.sh`, `storcli_phy.sh`, `storcli_drives.sh`, `storcli_enclosures.sh`, `storcli_events.sh` |
+| lsiutil | storcli | storcli2 |
+| --- | --- | --- |
+| `hba.sh`, `phy.sh`, `events.sh`, `drives_osmap.sh`, `drives_join.sh` | `storcli_overview.sh`, `storcli_phy.sh`, `storcli_drives.sh`, `storcli_enclosures.sh` | `storcli2_overview.sh`, `storcli2_phy.sh`, `storcli2_drives.sh`, `storcli2_enclosures.sh` |
 
-Shared: `smart.sh`, `diskstats.sh`, `cache_temps.sh`.
+Shared: `smart.sh`, `diskstats.sh`, `cache_temps.sh`, and `storcli_events.sh` —
+StorCLI2 renames exactly one key in the event record (`Sequence Number:` for
+`seqNum:`) and changes nothing else, so one parser serves both rather than a
+fourth file to keep in step.
+
+The storcli2 family emits the SAME payload shape as the storcli family. That is
+deliberate and load-bearing: it is what lets one set of renderers serve both, via
+`lsi_backend_shape()`. Two fields are added rather than changed — `os_name` (the
+real `/dev` name, which the classic tool cannot report) and per-drive `temp`.
 
 They require **GNU awk** — three-argument `match()` is used deliberately. CI
 installs it; Unraid's Slackware base ships it.
@@ -239,6 +263,25 @@ Unraid clients poll the `.plg` on `main`, so that patch commit is what ships.
 
 ## Where the sharp edges are
 
+- **A SAS4 card in eHBA personality has NO SAS transport class.** Measured on a
+  9600-24i (`mpi3mr`, Unraid 7.3.2): `/sys/class/sas_phy`, `sas_port`,
+  `sas_device`, `sas_end_device` and `sas_host` are all empty, `lsscsi -t` prints
+  no transport string, device paths are flat (`host17/target17:0:27/17:0:27:0`),
+  and `/dev/bsg` nodes are named by SCSI `h:c:t:l` rather than SAS address. The
+  driver only installs the transport template when the controller does *not*
+  advertise `MULTIPATH_SUPPORTED` (`mpi3mr_fw.c`), and this firmware does. So
+  every sysfs-derived signal the storcli backend leans on returns nothing here,
+  and **returning zero for any of them is the "absence is not health" bug**: PHY
+  error totals, the Performance tab's link-error series and the health `phys`
+  list all had to learn to say "unmeasured". StorCLI2 reports the four counters
+  itself, so the tabs that can afford a subprocess read them from there; the
+  ~2s Performance poll cannot, and emits `"phy":null`.
+- **The controller index is not the scsi host number.** It never was guaranteed,
+  but a single card at `host0` hid it. The 9600 sits at `host17` behind sixteen
+  ahci hosts, so `phy-<controller>:*` globs and host-ordered lookups address the
+  wrong device or nothing at all. Address by `/cN` through the tool instead.
+- **PHY numbering does not start at zero.** A 24i reports phys 8–31. Anything
+  using a phy number as an array index or assuming `0..N-1` is wrong.
 - **Two backends, different keys.** The storcli drives payload has no `phy`
   field; joining PHY data to drives there goes through the SAS address, and an
   exact match fails — the PHY reports the port address it is attached to while

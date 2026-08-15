@@ -2,17 +2,57 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "HBAviewer">
 <!ENTITY author    "FugginOld">
-<!ENTITY version   "2026.08.09">
+<!ENTITY version   "2026.08.15">
 <!ENTITY launch    "Tools/HBAviewer_Monitor">
-<!ENTITY pluginURL "https://raw.githubusercontent.com/FugginOld/Unraid-HBAviewer/main/hbaviewer.plg">
-<!ENTITY pkgURL    "https://github.com/FugginOld/Unraid-HBAviewer/releases/download/2026.08.09/hbaviewer.txz">
-<!ENTITY md5       "4b1e95ded6ef988e6e529f4e1106c839">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg">
+<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15/hbaviewer.txz">
+<!ENTITY md5       "454b19e7419b6cbdecad93f9f98a0cfc">
 <!ENTITY icon      "hbaviewer.png">
 ]>
 
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;">
 
 <CHANGES>
+###2026.08.15###
+Adds support for SAS4 / 9600-series controllers, which run on the mpi3mr
+driver and are managed by StorCLI2. This is a personal fork of FugginOld's
+HBAviewer and updates from it rather than from upstream.
+
+**Added**
+- **SAS4 / 9600-series support.** These cards are neither of the two
+  generations the plugin knew about: they use the mpi3mr driver rather than
+  an mpt personality, and StorCLI2 rather than storcli. StorCLI2 is a
+  different binary, not a newer one. Overview, Drives, Health, PHY Health
+  and the Event Log all read from it.
+- The Drives table now shows the real /dev name on this backend. StorCLI2
+  reports it outright, so the Device column is no longer matched by serial
+  number against lsblk.
+
+**Fixed**
+- The plugin picked its tool by name and took the first one it found. A
+  9600 box normally has both installed, and the classic storcli reports
+  zero controllers there, which looks exactly like having no card at all.
+  It now tries each one and keeps whichever actually enumerates hardware.
+- The reported driver came from whichever module was loaded. Unraid builds
+  mpt3sas into the kernel, so a box whose only HBA was a 9600 was told it
+  had an mpt3sas controller.
+- StorCLI2 writes a debug log into whatever directory it is run from, which
+  was the plugin own scripts directory — RAM-backed, growing on every page
+  load, and holding drive serial numbers. Both tools now run from a scratch
+  directory, and StorCLI2 is told not to write one at all.
+
+**Notes**
+- StorCLI2 is proprietary and is not bundled, exactly as storcli is not.
+  The dkaser storcli plugin ships one as storcli2.
+- The firmware event log needs Broadcom's full StorCLI2. The Lite build
+  answers that command with "Un-supported command", and the Event Log tab
+  says so rather than showing an empty table.
+- On these cards in eHBA personality the kernel registers no SAS transport
+  class, so the Performance tab cannot sample link-error counters at its
+  poll rate. That series reads as unmeasured rather than as zero.
+- Locate and the Array Map are not supported on this backend yet: both key
+  on SAS addresses, which this card does not publish to the kernel.
+
 ###2026.08.09###
 Firmware/BIOS flashing is switched off in this release while it gets more
 testing. Nothing else changes.

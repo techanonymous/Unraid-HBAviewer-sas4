@@ -49,6 +49,20 @@ function event_store_write(string $file, array $entries): void {
    both shapes, and a renderer built for one shape hits undefined keys on the
    other. These two helpers let the caller show only what it can format. */
 
+/* The record and table SHAPE a backend NAME implies. StorCLI2 is a separate tool
+   with its own command set, but everything it hands the renderers was written to
+   the classic storcli contract deliberately, so one renderer serves both and
+   'storcli2' folds onto 'storcli' here.
+   It lives in this file rather than view.php because event_archive.php is
+   required before any renderer runs AND is require-able on its own by the test
+   runner, so both callers share one copy instead of keeping two in step.
+   Without it, event_visible() hides a 9600's entries from its own table: no
+   archived entry ever has the shape 'storcli2', so every row would be counted as
+   "from a previous backend" and nothing would render. */
+function lsi_backend_shape(string $backend): string {
+    return $backend === 'storcli2' ? 'storcli' : $backend;
+}
+
 /* Which backend produced this entry: 'storcli' | 'lsiutil' | '' when unknown. */
 function event_shape(array $entry): string {
     if (isset($entry['description'])) return 'storcli';
@@ -63,6 +77,7 @@ function event_shape(array $entry): string {
    ponytail: hide foreign entries rather than render a second table for them.
    If anyone asks to see pre-switch history, render both tables instead. */
 function event_visible(array $entries, string $backend): array {
+    $backend = lsi_backend_shape($backend);
     if ($backend === '') $backend = event_shape($entries[0] ?? []);
     if ($backend === '') return $entries;
     return array_values(array_filter($entries, fn($e) => event_shape($e) === $backend));

@@ -1,11 +1,11 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
-<!ENTITY name      "HBAviewer">
-<!ENTITY author    "FugginOld">
-<!ENTITY version   "2026.08.15">
+<!ENTITY name      "HBAviewer SAS4">
+<!ENTITY author    "techanonymous">
+<!ENTITY version   "2026.08.15.1">
 <!ENTITY launch    "Tools/HBAviewer_Monitor">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg">
-<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15/hbaviewer.txz">
+<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.1/hbaviewer.txz">
 <!ENTITY md5       "fe4ab8a40c9929d75d44f845caa03c8c">
 <!ENTITY icon      "hbaviewer.png">
 ]>
@@ -13,6 +13,19 @@
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;">
 
 <CHANGES>
+###2026.08.15.1###
+Renames the plugin to HBAviewer SAS4 and credits this fork to techanonymous.
+No functional change.
+
+**Changed**
+- The plugin is now called **HBAviewer SAS4** on the Plugins page and in the
+  Tools and Utilities menus, and its author is listed as techanonymous. The
+  original HBAviewer by FugginOld is a separate plugin and the two can be
+  told apart at a glance.
+- Nothing about where settings, bay maps or event archives are stored has
+  moved: those paths were always lowercase hbaviewer and are untouched, so
+  the rename keeps every setting you already have.
+
 ###2026.08.15###
 Adds support for SAS4 / 9600-series controllers, which run on the mpi3mr
 driver and are managed by StorCLI2. This is a personal fork of FugginOld's
@@ -484,14 +497,18 @@ rm -rf /usr/local/emhttp/plugins/hbaviewer
 tar -xJf /boot/config/plugins/hbaviewer/hbaviewer.txz -C /
 chmod +x /usr/local/emhttp/plugins/hbaviewer/hbaviewer.x86_64
 chmod +x /usr/local/emhttp/plugins/hbaviewer/scripts/*.sh
-# Unraid's plugin manager resolves the Plugins-page icon against
-# plugins/NAME/, where NAME is this plg's name attribute — "HBAviewer",
-# capital H — not the lowercase install directory. So the icon has to exist
-# there too. Deliberately created here rather than shipped in the repo:
-# HBAviewer/ and hbaviewer/ collide on case-insensitive filesystems, so a
-# maintainer on Windows or macOS would see a phantom deletion on every checkout.
-mkdir -p /usr/local/emhttp/plugins/HBAviewer
-cp -f /usr/local/emhttp/plugins/hbaviewer/icon.png /usr/local/emhttp/plugins/HBAviewer/hbaviewer.png
+# Unraid's plugin manager resolves the Plugins-page icon against plugins/NAME/,
+# where NAME is this plg's name attribute — "HBAviewer SAS4", with a space — not
+# the lowercase install directory. So the icon has to exist there too.
+# Deliberately created here rather than shipped in the repo: a directory
+# differing from hbaviewer/ only in case collides on case-insensitive
+# filesystems, so a maintainer on Windows or macOS would see a phantom deletion
+# on every checkout. Quoted throughout because the name contains a space.
+# The unspaced directory the pre-rename builds used is cleared first, so an
+# upgrade does not leave an orphan behind it.
+rm -rf /usr/local/emhttp/plugins/HBAviewer
+mkdir -p "/usr/local/emhttp/plugins/HBAviewer SAS4"
+cp -f /usr/local/emhttp/plugins/hbaviewer/icon.png "/usr/local/emhttp/plugins/HBAviewer SAS4/hbaviewer.png"
 if [ ! -f /boot/config/plugins/hbaviewer/hbaviewer.cfg ]; then
   mkdir -p /boot/config/plugins/hbaviewer
   printf "HBA_PORT=1\nALERT_THRESHOLD=80\n" > /boot/config/plugins/hbaviewer/hbaviewer.cfg
@@ -522,6 +539,7 @@ printf '%s\n' \
 removepkg hbaviewer
 rm -rf /usr/local/emhttp/plugins/hbaviewer
 rm -rf /usr/local/emhttp/plugins/HBAviewer
+rm -rf "/usr/local/emhttp/plugins/HBAviewer SAS4"
 # Pair of the install block's cron entry — an orphaned job pointing at a deleted
 # script would run (and fail) every 10 minutes forever. update_cron rebuilds
 # root's crontab without it.

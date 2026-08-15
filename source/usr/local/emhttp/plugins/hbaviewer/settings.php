@@ -168,7 +168,7 @@ function lu_checked(int $val): string { return $val ? 'checked' : ''; }
 .lu-s-row:last-child { margin-bottom: 0; }
 .lu-s-label { flex: 0 0 180px; font-size: 13px; color: var(--text); padding-top: 8px; }
 .lu-s-label small { display: block; font-size: 11px; color: var(--faint); margin-top: 3px; line-height: 1.4; }
-.lu-s-control { flex: 1; }
+.lu-s-control { flex: 1; min-width: 0; }  /* min-width:0 — a flex item defaults to min-width:auto and will not shrink below its content, so one long unbreakable string (a command in a pre) bursts out of the 360px column and paints over the next one */
 .lu-s-control input[type=number] { width: 90px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 14px; font-family: var(--mono); }
 .lu-s-control input[type=number]:focus { outline: none; border-color: var(--accent); }
 /* A card the maintainer has switched off. Greyed by opacity rather than by
@@ -267,11 +267,16 @@ function lu_checked(int $val): string { return $val ? 'checked' : ''; }
             <?php endif; ?>
           </small>
 
-          <details style="margin-top:8px">
+          <?php /* max-width + overflow-wrap throughout: this card sits in a CSS
+                   multi-column grid (.lu-s-grid, columns 360px), so anything
+                   that refuses to wrap does not merely overflow its own box —
+                   it paints across the neighbouring column. The paths and the
+                   command below are all longer than the column is wide. */ ?>
+          <details style="margin-top:8px;max-width:100%">
             <summary style="cursor:pointer;color:#f5a623">
               How to install the full StorCLI2 (once per server)
             </summary>
-            <div style="margin-top:8px;line-height:1.6">
+            <div style="margin-top:8px;line-height:1.6;max-width:100%;overflow-wrap:anywhere">
               <strong>1.</strong> On any machine, download <strong>StorCLI2</strong> from
               <a href="https://docs.broadcom.com/docs/1232743171" target="_blank" rel="noreferrer">Broadcom's site</a>.
               It cannot be fetched automatically — the page is JavaScript-driven behind
@@ -282,7 +287,11 @@ function lu_checked(int $val): string { return $val ? 'checked' : ''; }
 
               <strong>3.</strong> On <em>this server</em> (Unraid terminal, or SSH — not on
               your desktop), run:
-              <pre style="margin:6px 0;padding:8px;overflow-x:auto;font-size:12px">bash <?= htmlspecialchars(__DIR__) ?>/scripts/install_storcli2.sh /path/to/the-file.zip</pre>
+              <?php /* pre-wrap, not the default pre: the command is ~100 characters
+                       with no space to break at until the end, and a non-wrapping
+                       pre sets a min-content width the flex control cannot shrink
+                       below. It still copies as one line. */ ?>
+              <pre style="margin:6px 0;padding:8px;font-size:12px;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--border-soft);border-radius:6px">bash <?= htmlspecialchars(__DIR__) ?>/scripts/install_storcli2.sh /path/to/the-file.zip</pre>
 
               <strong>4.</strong> Reload this page. This row should turn green, and the
               Event Log tab will start working. Nothing needs restarting.<br>

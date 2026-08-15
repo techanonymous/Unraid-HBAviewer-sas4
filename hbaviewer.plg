@@ -2,10 +2,10 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "HBAviewer-SAS4">
 <!ENTITY author    "techanonymous">
-<!ENTITY version   "2026.08.15.2">
+<!ENTITY version   "2026.08.15.3">
 <!ENTITY launch    "Tools/HBAviewer_Monitor">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg">
-<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.2/hbaviewer.txz">
+<!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.3/hbaviewer.txz">
 <!ENTITY md5       "4120fc59c26c2db45fca746fa4fb7dfb">
 <!ENTITY icon      "hbaviewer.png">
 ]>
@@ -13,6 +13,22 @@
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;">
 
 <CHANGES>
+###2026.08.15.3###
+Adds a helper that installs Broadcom full StorCLI2 for you, and step-by-step
+instructions for it on the Settings page.
+
+**Added**
+- **scripts/install_storcli2.sh** — hand it the zip you downloaded from
+  Broadcom and it does the rest: unpacks it, checks the binary really is
+  StorCLI2, copies it to the flash so it survives a reboot, and adds the
+  boot-time restore to your go file. Safe to re-run, and it backs the go file
+  up before touching it.
+- **Settings now tells you how and when to use it.** A Firmware Event Log row
+  appears on SAS4 systems showing whether the full StorCLI2 is installed, with
+  the four steps folded underneath. The download itself stays manual: Broadcom
+  serves it from a JavaScript page behind bot protection, and the tool is
+  proprietary, so it cannot be fetched or bundled automatically.
+
 ###2026.08.15.2###
 Fixes the Plugins page row left by the rename in 2026.08.15.1.
 

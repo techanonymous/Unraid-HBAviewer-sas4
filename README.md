@@ -258,25 +258,25 @@ That covers every tab on a 9600 **except the firmware Event Log**, because the
 StorCLI2 build it ships is the feature-reduced *Lite* one. If you want the Event
 Log too, install Broadcom's full StorCLI2 as well:
 
-1. Download **StorCLI2** from Broadcom's support site (it is proprietary and
-   cannot be redistributed here).
-2. From the archive, take the Linux x86_64 build. In the release used here it sat
-   at `storcli_rel/Avenger_StorCLI/Linux/storcli2-*.x86_64.rpm` and
-   `storcli_rel/Avenger_StorCLI/Ubuntu/storcli2_*_amd64.deb`; either package
-   contains one binary, at `opt/MegaRAID/storcli2/storcli2`. Neither installs on
-   Slackware, so extract rather than install it.
-3. Copy that binary to your flash drive, somewhere that survives a reboot:
-   `/boot/config/plugins/hbaviewer/tools/storcli2`
-4. `/opt` is RAM on Unraid and the flash is FAT32, so it cannot keep the execute
-   bit — restore it at each boot by adding these lines to `/boot/config/go`:
+1. Download **StorCLI2** from Broadcom (proprietary, so it cannot be redistributed
+   here — and it cannot be fetched automatically either: the page is
+   JavaScript-driven behind bot protection with no stable direct URL).
+2. Copy the `.zip` onto the server — any share will do — then run the helper the
+   plugin ships, **on the server**, not on your desktop:
 
     ```bash
-    mkdir -p /opt/MegaRAID/storcli2
-    cp /boot/config/plugins/hbaviewer/tools/storcli2 /opt/MegaRAID/storcli2/storcli2
-    chmod +x /opt/MegaRAID/storcli2/storcli2
+    bash /usr/local/emhttp/plugins/hbaviewer/scripts/install_storcli2.sh /path/to/StorCLI2.zip
     ```
 
-5. Run those three lines once by hand so you do not have to reboot now.
+   It unpacks the archive (it also accepts the `.deb`, `.rpm` or a bare binary),
+   checks what it found really is StorCLI2, copies it to
+   `/boot/config/plugins/hbaviewer/tools/` so it survives a reboot, and adds three
+   lines to `/boot/config/go` that restore it at boot — `/opt` is RAM here and the
+   flash is FAT32, so it cannot keep the execute bit. It backs `go` up first, is
+   safe to re-run, and takes `--no-go` if you would rather do that part yourself.
+
+**Settings → HBA Connection → Firmware Event Log** shows these same steps and
+whether the full build is currently installed, so you never have to come back here.
 
 ### 3. Confirm it found your card
 

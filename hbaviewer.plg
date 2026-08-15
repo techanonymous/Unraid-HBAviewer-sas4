@@ -6,7 +6,7 @@
 <!ENTITY launch    "Tools/HBAviewer_Monitor">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/techanonymous/Unraid-HBAviewer-sas4/main/hbaviewer.plg">
 <!ENTITY pkgURL    "https://github.com/techanonymous/Unraid-HBAviewer-sas4/releases/download/2026.08.15.1/hbaviewer.txz">
-<!ENTITY md5       "fe4ab8a40c9929d75d44f845caa03c8c">
+<!ENTITY md5       "60cdecc4eaf8852546b7a9fe1e3dc9cd">
 <!ENTITY icon      "hbaviewer.png">
 ]>
 
